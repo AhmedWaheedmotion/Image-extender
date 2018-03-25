@@ -1,9 +1,10 @@
 import numpy as np
-from PIL import Image
 import requests
 import scipy.misc
 import skimage.transform
-
+from sys import argv
+from PIL import Image
+import argparse
 
 class D:
     Left, Down, Right, Up = range(4)
@@ -19,17 +20,26 @@ def kernel(d):
 
 
 if __name__ == '__main__':
-    url = 'https://pbs.twimg.com/media/DJUEgzAVYAAHbkB.png'
+    argc = len(argv)
+    if len(argv) != 2:
+        msg = 'bad number of arguments: was {}, should be 2'.format(len(argv))
+        raise ValueError(msg)
+
+    name = argv[1]
+    try:
+        img = Image.open(name)
+    except FileNotFoundError:
+        img = Image.open(requests.get(name, stream=True).raw)
 
     # Desired size
     output_h = 1080
     output_w = 1920
 
     # load the image
-    image = np.array(Image.open(requests.get(url, stream=True).raw)) / 255
+    input = np.array(img)
 
     # input image dimensions
-    input_h, input_w, nb_vals = image.shape
+    input_h, input_w, nb_vals = input.shape
 
     # scale the image
     """
@@ -42,7 +52,7 @@ if __name__ == '__main__':
     """
 
     # dimensions of the scaled image
-    input_h, input_w, nb_vals = image.shape
+    input_h, input_w, nb_vals = input.shape
 
     result = np.zeros((output_h, output_w, nb_vals))
 
@@ -51,7 +61,7 @@ if __name__ == '__main__':
     starty = (output_h - input_h) // 2
     for y in range(input_h):
         for x in range(input_w):
-            result[starty + y, startx + x] = image[y, x]
+            result[starty + y, startx + x] = input[y, x]
 
     n = 20
     left_kernel = np.array([(j, -i - 1) for i in range(n) for j in range(i - n + 1, n - i)])
