@@ -20,12 +20,11 @@ def kernel(d):
 
 
 if __name__ == '__main__':
-    argc = len(argv)
-    if len(argv) != 2:
-        msg = 'bad number of arguments: was {}, should be 2'.format(len(argv))
-        raise ValueError(msg)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('img_name', help='path/url of the image to process')
+    args = parser.parse_args()
 
-    name = argv[1]
+    name = args.img_name
     try:
         img = Image.open(name)
     except FileNotFoundError:
