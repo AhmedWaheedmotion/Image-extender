@@ -1,6 +1,7 @@
 import numpy as np
+import os
 import requests
-import scipy.misc
+import imageio
 import skimage.transform
 from sys import argv
 from PIL import Image
@@ -18,13 +19,24 @@ def kernel(d):
        D.Up: up_kernel
     }[d]
 
+extensions = {ext for f in imageio.formats for ext in f.extensions}
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    # Parse the arguments
+    parser = argparse.ArgumentParser(description='Extend the image to fit a resolution')
     parser.add_argument('img_name', help='path/url of the image to process')
+    parser.add_argument('-s', '--scale', help='scale the image before the extension process', action='store_true')
+    parser.add_argument('-o', '--output', help='specify the name of the output image', default='result.png')
     args = parser.parse_args()
-
     name = args.img_name
+
+    # check the desired output name, add .png if it is not valid
+    _, ext_name = os.path.splitext(args.output)
+    if ext_name in extensions:
+        out_name = args.output
+    else:
+        out_name = args.output + '.png'
+
     try:
         img = Image.open(name)
     except FileNotFoundError:
@@ -41,14 +53,13 @@ if __name__ == '__main__':
     input_h, input_w, nb_vals = input.shape
 
     # scale the image
-    """
-    ratio_h = output_h/input_h
-    ratio_w = output_w/input_h
-    if ratio_h > ratio_w:
-        image = skimage.transform.resize(image, (round(ratio_w * input_h), output_w, nb_vals))
-    else:
-        image = skimage.transform.resize(image, (output_h, round(ratio_h * input_w), nb_vals))
-    """
+    if args.scale:
+        ratio_h = output_h/input_h
+        ratio_w = output_w/input_h
+        if ratio_h > ratio_w:
+            input = skimage.transform.resize(input, (round(ratio_w * input_h), output_w, nb_vals))
+        else:
+            input = skimage.transform.resize(input, (output_h, round(ratio_h * input_w), nb_vals))
 
     # dimensions of the scaled image
     input_h, input_w, nb_vals = input.shape
@@ -89,4 +100,4 @@ if __name__ == '__main__':
         for y in range(output_h):
             result[y, x] = convolute(y, x, D.Left)
 
-    scipy.misc.imsave('result.png', result[:, :, :3])
+    imageio.imwrite(out_name, result[:, :, :3])
