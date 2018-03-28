@@ -20,7 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('img_name', help='path/url of the image to process')
     parser.add_argument('-s', '--scale', help='scale the image before the extension process', action='store_true')
     parser.add_argument('-o', '--output', help='specify the name of the output image', default='result.png')
-    parser.add_argument('-k', '--kernel', help='specify the kernel type used for convolution', choices=['square', 'triangle', 'rectangle'], default='triangle')
+    parser.add_argument('-k', '--kernel', help='specify the kernel type used for convolution', choices=['square', 'triangle', 'rectangle', 'disc'], default='triangle')
     parser.add_argument('-kw', '--kernel_width', help='specify the kernel width (default = 21)', type=int, default=21)
     parser.add_argument('-kh', '--kernel_height', help='specify the kernel height (default = 21)', type=int, default=21)
     args = parser.parse_args()
@@ -80,10 +80,12 @@ if __name__ == '__main__':
 
     kw = args.kernel_width
     kw = kw + 1 - kw%2
-    if args.kernel is 'rectangle':
-        kh = args.kernel_height
-    else:
-        kh = kw
+    kh = {
+            'square': kw,
+            'rectangle': args.kernel_height,
+            'triangle': kw//2 + 1,
+            'disc': kw//2 + 1
+            }[args.kernel]
 
     def square():
         kernel = square = np.ones((kw, kw), dtype=bool)
@@ -103,32 +105,40 @@ if __name__ == '__main__':
                 np.ones((kw, kh), dtype=bool),
                 np.ones((kh, kw), dtype=bool))
 
+    def disc():
+        left_kernel = np.array([[abs(j - kw//2)**2 + (kh - i)**2 <= (kw//2 + 1)**2 for i in range(kh)] for j in range(kw)])
+        down_kernel = np.array([[j**2 + abs(i - kw//2)**2 <= (kw//2)**2  for i in range(kw)] for j in range(kh)])
+        right_kernel = np.array([[abs(j - kw//2)**2 + i**2 <= (kw//2)**2 for i in range(kh)] for j in range(kw)])
+        up_kernel = np.array([[(kh - j)**2 + (abs(i - kw//2))**2 <= (kw//2 + 1)**2  for i in range(kw)] for j in range(kh)])
+        return (left_kernel, down_kernel, right_kernel, up_kernel)
+
     left_k, down_k, right_k, up_k = {
             'triangle': triangle,
             'square': square,
-            'rectangle': rectangle
+            'rectangle': rectangle,
+            'disc': disc
             }[args.kernel]()
     
     # returns the mean of the pixels in the given direction after applying the filtering kernel
     def convolute(y, x, d, minx=0, maxx=output_w - 1, miny=0, maxy=output_h - 1): 
         if d is D.Left:
             filter = left_k[kw//2 - min(kw//2, y - miny): maxy - y + kw//2 + 1]
-            values = result[max(y - kw//2, miny): min(y + kw//2, maxy) + 1, x - kw: x]
+            values = result[max(y - kw//2, miny): min(y + kw//2, maxy) + 1, x - kh: x]
             return values[filter].mean(axis=0)
 
         if d is D.Down:
             filter = down_k[:, kw//2 - min(kw//2, x - minx): maxx - x + kw//2 + 1]
-            values =  result[y + 1: y + kw + 1, max(x - kw//2, minx): min(x + kw//2, maxx) + 1]
+            values =  result[y + 1: y + kh + 1, max(x - kw//2, minx): min(x + kw//2, maxx) + 1]
             return values[filter].mean(axis=0)
 
         if d is D.Right:
             filter = right_k[kw//2 - min(kw//2, y - miny): maxy - y + kw//2 + 1]
-            values = result[max(y - kw//2, miny): min(y + kw//2, maxy) + 1, x + 1: x + kw + 1]
+            values = result[max(y - kw//2, miny): min(y + kw//2, maxy) + 1, x + 1: x + kh + 1]
             return values[filter].mean(axis=0)
 
         if d is D.Up:
             filter = up_k[:, kw//2 - min(kw//2, x - minx): maxx - x + kw//2 + 1]
-            values = result[y - kw:  y, max(x - kw//2, minx): min(x + kw//2, maxx) + 1]
+            values = result[y - kh:  y, max(x - kw//2, minx): min(x + kw//2, maxx) + 1]
             return values[filter].mean(axis=0)
 
         return 0
