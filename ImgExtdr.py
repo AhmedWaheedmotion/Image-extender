@@ -10,7 +10,63 @@ import argparse
 class D:
     Left, Down, Right, Up = range(4)
 
+class Kernel:
+    def __init__(self, left_kernel, down_kernel, right_kernel, up_kernel):
+        self.kernel = {
+            D.Left: left_kernel,
+            D.Down: down_kernel,
+            D.Right: right_kernel,
+            D.Up: up_kernel
+        }
 
+    @classmethod
+    def fromleftkernel(cls, left_kernel):
+        down_kernel = np.rot90(left_kernel, axes=(0,1))
+        right_kernel = np.rot90(down_kernel, axes=(0,1))
+        up_kernel = np.rot90(right_kernel, axes=(0,1))
+        return cls(left_kernel, down_kernel, right_kernel, up_kernel)
+
+    @classmethod
+    def fromdownkernel(cls, down_kernel):
+        right_kernel = np.rot90(down_kernel, axes=(0,1))
+        up_kernel = np.rot90(right_kernel, axes=(0,1))
+        left_kernel = np.rot90(up_kernel, axes=(0,1))
+        return cls(left_kernel, down_kernel, right_kernel, up_kernel)
+
+    @classmethod
+    def fromrightkernel(cls, right_kernel):
+        up_kernel = np.rot90(right_kernel, axes=(0,1))
+        left_kernel = np.rot90(up_kernel, axes=(0,1))
+        down_kernel = np.rot90(left_kernel, axes=(0,1))
+        return cls(left_kernel, down_kernel, right_kernel, up_kernel)
+
+    @classmethod
+    def fromupkernel(cls, up_kernel):
+        left_kernel = np.rot90(up_kernel, axes=(0,1))
+        down_kernel = np.rot90(left_kernel, axes=(0,1))
+        right_kernel = np.rot90(down_kernel, axes=(0,1))
+        return cls(left_kernel, down_kernel, right_kernel, up_kernel)
+
+    def __getitem__(self, key):
+        return self.kernel[key]
+
+def square(kw, kh):
+    kernel = square = np.ones((kw, kw), dtype=bool)
+    return Kernel(kernel, kernel, kernel, kernel)
+
+def triangle(kw, kh):
+    left_kernel = np.array([[abs(j - kw//2) + kh - i <= kw//2 + 1 for i in range(kh)] for j in range(kw)])
+    return Kernel.fromleftkernel(left_kernel)
+
+def rectangle(kw, kh):
+    return Kernel(np.ones((kw, kh), dtype=bool),
+                  np.ones((kh, kw), dtype=bool),
+                  np.ones((kw, kh), dtype=bool),
+                  np.ones((kh, kw), dtype=bool))
+
+def disc(kw, kh):
+    left_kernel = np.array([[abs(j - kw//2)**2 + (kh - i - 1)**2 <= (kw//2)**2 for i in range(kh)] for j in range(kw)])
+    return Kernel.fromleftkernel(left_kernel)
 
 extensions = {ext for f in imageio.formats for ext in f.extensions}
 
@@ -49,8 +105,6 @@ if __name__ == '__main__':
     # input image dimensions
     input_h, input_w, nb_vals = input.shape
 
-    print('input_h {} input_w {}'.format(input_h, input_w))
-
     # scale the image
     if args.scale or input_w > output_w or input_h > output_h:
         ratio_h = output_h/input_h
@@ -87,57 +141,32 @@ if __name__ == '__main__':
             'disc': kw//2 + 1
             }[args.kernel]
 
-    def square():
-        kernel = square = np.ones((kw, kw), dtype=bool)
-        return (kernel, kernel, kernel, kernel)
-
-    def triangle():
-        left_kernel = np.array([[abs(j - kw//2) + kh - i <= kw//2 + 1 for i in range(kh)] for j in range(kw)])
-        down_kernel = np.array([[j + abs(i - kw//2) <= kw//2  for i in range(kw)] for j in range(kh)])
-        right_kernel = np.array([[abs(j - kw//2) + i <= kw//2 for i in range(kh)] for j in range(kw)])
-        up_kernel = np.array([[kh - j + abs(i - kw//2) <= kw//2 + 1  for i in range(kw)] for j in range(kh)])
-
-        return (left_kernel, down_kernel, right_kernel, up_kernel)
-
-    def rectangle():
-        return (np.ones((kw, kh), dtype=bool),
-                np.ones((kh, kw), dtype=bool),
-                np.ones((kw, kh), dtype=bool),
-                np.ones((kh, kw), dtype=bool))
-
-    def disc():
-        left_kernel = np.array([[abs(j - kw//2)**2 + (kh - i)**2 <= (kw//2 + 1)**2 for i in range(kh)] for j in range(kw)])
-        down_kernel = np.array([[j**2 + abs(i - kw//2)**2 <= (kw//2)**2  for i in range(kw)] for j in range(kh)])
-        right_kernel = np.array([[abs(j - kw//2)**2 + i**2 <= (kw//2)**2 for i in range(kh)] for j in range(kw)])
-        up_kernel = np.array([[(kh - j)**2 + (abs(i - kw//2))**2 <= (kw//2 + 1)**2  for i in range(kw)] for j in range(kh)])
-        return (left_kernel, down_kernel, right_kernel, up_kernel)
-
-    left_k, down_k, right_k, up_k = {
+    kernel = {
             'triangle': triangle,
             'square': square,
             'rectangle': rectangle,
             'disc': disc
-            }[args.kernel]()
+            }[args.kernel](kw, kh)
     
     # returns the mean of the pixels in the given direction after applying the filtering kernel
     def convolute(y, x, d, minx=0, maxx=output_w - 1, miny=0, maxy=output_h - 1): 
         if d is D.Left:
-            filter = left_k[kw//2 - min(kw//2, y - miny): maxy - y + kw//2 + 1]
+            filter = kernel[d][kw//2 - min(kw//2, y - miny): maxy - y + kw//2 + 1]
             values = result[max(y - kw//2, miny): min(y + kw//2, maxy) + 1, x - kh: x]
             return values[filter].mean(axis=0)
 
         if d is D.Down:
-            filter = down_k[:, kw//2 - min(kw//2, x - minx): maxx - x + kw//2 + 1]
+            filter = kernel[d][:, kw//2 - min(kw//2, x - minx): maxx - x + kw//2 + 1]
             values =  result[y + 1: y + kh + 1, max(x - kw//2, minx): min(x + kw//2, maxx) + 1]
             return values[filter].mean(axis=0)
 
         if d is D.Right:
-            filter = right_k[kw//2 - min(kw//2, y - miny): maxy - y + kw//2 + 1]
+            filter = kernel[d][kw//2 - min(kw//2, y - miny): maxy - y + kw//2 + 1]
             values = result[max(y - kw//2, miny): min(y + kw//2, maxy) + 1, x + 1: x + kh + 1]
             return values[filter].mean(axis=0)
 
         if d is D.Up:
-            filter = up_k[:, kw//2 - min(kw//2, x - minx): maxx - x + kw//2 + 1]
+            filter = kernel[d][:, kw//2 - min(kw//2, x - minx): maxx - x + kw//2 + 1]
             values = result[y - kh:  y, max(x - kw//2, minx): min(x + kw//2, maxx) + 1]
             return values[filter].mean(axis=0)
 
