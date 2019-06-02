@@ -46,23 +46,22 @@ if __name__ == '__main__':
     input = np.array(img)
 
     # input image dimensions
-    input_h, input_w, nb_vals = input.shape
+    input_h, input_w, nb_channels = input.shape
 
     # scale the image
     if args.scale or input_w > output_w or input_h > output_h:
         ratio_h = output_h/input_h
         ratio_w = output_w/input_w
         if ratio_h > ratio_w:
-            input = skimage.transform.resize(input, (round(ratio_w * input_h), output_w, nb_vals), mode='reflect')
+            input = skimage.transform.resize(input, (round(ratio_w * input_h), output_w, nb_channels), mode='reflect')
         else:
-            input = skimage.transform.resize(input, (output_h, round(ratio_h * input_w), nb_vals), mode='reflect')
+            input = skimage.transform.resize(input, (output_h, round(ratio_h * input_w), nb_channels), mode='reflect')
         input = np.uint8(input * 255)
-    
 
-    # dimensions of the scaled image
-    input_h, input_w, nb_vals = input.shape
+        # dimensions of the scaled image
+        input_h, input_w, nb_channels = input.shape
 
-    result = np.zeros((output_h, output_w, nb_vals))
+    result = np.zeros((output_h, output_w, nb_channels))
 
     # Copy the input image in the middle of the result image
     startx = (output_w - input_w) // 2
